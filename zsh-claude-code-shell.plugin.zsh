@@ -137,16 +137,18 @@ _zsh_claude_accept_line() {
         return 1
     fi
 
+    # Disable job notifications for all background processes in this function.
+    # Using local_options so settings are restored on function exit, but by then
+    # all jobs are already waited-on or disowned — nothing left to notify about.
+    setopt local_options no_notify no_monitor
+
     # Start spinner or show simple message
     local spinner_pid=""
     if [[ "$ZSH_CLAUDE_SHELL_FANCY_LOADING" == "1" ]]; then
         # Print newline so spinner appears below the query line
         print > /dev/tty
-        # Disable job notifications to prevent [1] 12345 and terminated messages
-        setopt local_options no_notify no_monitor
-        _zsh_claude_spinner &
+        _zsh_claude_spinner &!  # &! = background + auto-disown (zsh built-in)
         spinner_pid=$!
-        disown $spinner_pid 2>/dev/null
     else
         zle -R "Generating command with Claude..."
     fi
@@ -183,9 +185,10 @@ _zsh_claude_accept_line() {
         return 130
     ' INT
 
-    # Wait for claude to finish
+    # Wait for claude to finish, then disown to remove from job table
     wait $claude_pid
     exit_code=$?
+    disown $claude_pid 2>/dev/null
 
     # Reset trap and stop spinner
     trap - INT
