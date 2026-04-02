@@ -67,9 +67,10 @@ _zsh_claude_spinner() {
     # Build ping-pong frame sequence from platform-appropriate characters
     local -a base_chars=(${(s: :)$(_zsh_claude_spinner_chars)})
     local -a frames=("${base_chars[@]}")
-    local k
-    for ((k=${#base_chars[@]}; k>=1; k--)); do
+    local k=${#base_chars[@]}
+    while (( k >= 1 )); do
         frames+=("${base_chars[$k]}")
+        k=$(( k - 1 ))
     done
     local frame_count=${#frames[@]}
 
@@ -94,16 +95,23 @@ _zsh_claude_spinner() {
     while true; do
         local spinner_char="${frames[$frame_idx]}"
 
-        # Build output with per-character shimmer sweep
+        # Build output with shimmer sweep using substring slicing
         local output="${base_color}${spinner_char} "
-        local j
-        for ((j=1; j<=text_len; j++)); do
-            if (( j >= shimmer_pos - 1 && j <= shimmer_pos + 1 )); then
-                output+="${shimmer_color}${full_text[$j]}"
-            else
-                output+="${base_color}${full_text[$j]}"
-            fi
-        done
+        local s_start=$(( shimmer_pos - 1 ))
+        local s_end=$(( shimmer_pos + 1 ))
+        (( s_start < 1 )) && s_start=1
+        (( s_end > text_len )) && s_end=$text_len
+
+        # Before shimmer
+        if (( s_start > 1 )); then
+            output+="${base_color}${full_text[1,$((s_start - 1))]}"
+        fi
+        # Shimmer zone
+        output+="${shimmer_color}${full_text[$s_start,$s_end]}"
+        # After shimmer
+        if (( s_end < text_len )); then
+            output+="${base_color}${full_text[$((s_end + 1)),$text_len]}"
+        fi
         output+="${reset_color}"
 
         printf '\r\033[K%b' "$output" > /dev/tty
