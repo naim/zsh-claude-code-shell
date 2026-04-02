@@ -7,54 +7,129 @@
 : ${ZSH_CLAUDE_SHELL_DEBUG:=0}
 : ${ZSH_CLAUDE_SHELL_FANCY_LOADING:=1}  # Set to 0 to use simple loading message
 
+# Spinner character detection (platform/terminal-aware, matching Claude Code)
+_zsh_claude_spinner_chars() {
+    if [[ "$OSTYPE" == darwin* ]]; then
+        if [[ -n "$GHOSTTY_RESOURCES_DIR" ]]; then
+            echo '· ✢ ✳ ✶ ✻ *'
+        else
+            echo '· ✢ ✳ ✶ ✻ ✽'
+        fi
+    else
+        echo '· ✢ * ✶ ✻ ✽'
+    fi
+}
+
 # Thinking verbs (from Claude Code)
 _ZSH_CLAUDE_THINKING_VERBS=(
-    "Accomplishing" "Actioning" "Actualizing" "Baking" "Brewing"
-    "Calculating" "Cerebrating" "Churning" "Clauding" "Coalescing"
-    "Cogitating" "Computing" "Conjuring" "Considering" "Cooking"
-    "Crafting" "Creating" "Crunching" "Deliberating" "Determining"
-    "Doing" "Effecting" "Finagling" "Forging" "Forming" "Generating"
-    "Hatching" "Herding" "Honking" "Hustling" "Ideating" "Inferring"
-    "Manifesting" "Marinating" "Moseying" "Mulling" "Mustering" "Musing"
-    "Noodling" "Percolating" "Pondering" "Processing" "Puttering"
-    "Reticulating" "Ruminating" "Schlepping" "Shucking" "Simmering"
-    "Smooshing" "Spinning" "Stewing" "Synthesizing" "Thinking"
-    "Transmuting" "Vibing" "Working"
+    "Accomplishing" "Actioning" "Actualizing" "Architecting" "Baking"
+    "Beaming" "Beboppin'" "Befuddling" "Billowing" "Blanching"
+    "Bloviating" "Boogieing" "Boondoggling" "Booping" "Bootstrapping"
+    "Brewing" "Bunning" "Burrowing" "Calculating" "Canoodling"
+    "Caramelizing" "Cascading" "Catapulting" "Cerebrating" "Channeling"
+    "Channelling" "Choreographing" "Churning" "Clauding" "Coalescing"
+    "Cogitating" "Combobulating" "Composing" "Computing" "Concocting"
+    "Considering" "Contemplating" "Cooking" "Crafting" "Creating"
+    "Crunching" "Crystallizing" "Cultivating" "Deciphering" "Deliberating"
+    "Determining" "Dilly-dallying" "Discombobulating" "Doing" "Doodling"
+    "Drizzling" "Ebbing" "Effecting" "Elucidating" "Embellishing"
+    "Enchanting" "Envisioning" "Evaporating" "Fermenting" "Fiddle-faddling"
+    "Finagling" "Flambéing" "Flibbertigibbeting" "Flowing" "Flummoxing"
+    "Fluttering" "Forging" "Forming" "Frolicking" "Frosting"
+    "Gallivanting" "Galloping" "Garnishing" "Generating" "Gesticulating"
+    "Germinating" "Gitifying" "Grooving" "Gusting" "Harmonizing"
+    "Hashing" "Hatching" "Herding" "Honking" "Hullaballooing"
+    "Hyperspacing" "Ideating" "Imagining" "Improvising" "Incubating"
+    "Inferring" "Infusing" "Ionizing" "Jitterbugging" "Julienning"
+    "Kneading" "Leavening" "Levitating" "Lollygagging" "Manifesting"
+    "Marinating" "Meandering" "Metamorphosing" "Misting" "Moonwalking"
+    "Moseying" "Mulling" "Mustering" "Musing" "Nebulizing"
+    "Nesting" "Newspapering" "Noodling" "Nucleating" "Orbiting"
+    "Orchestrating" "Osmosing" "Perambulating" "Percolating" "Perusing"
+    "Philosophising" "Photosynthesizing" "Pollinating" "Pondering" "Pontificating"
+    "Pouncing" "Precipitating" "Prestidigitating" "Processing" "Proofing"
+    "Propagating" "Puttering" "Puzzling" "Quantumizing" "Razzle-dazzling"
+    "Razzmatazzing" "Recombobulating" "Reticulating" "Roosting" "Ruminating"
+    "Sautéing" "Scampering" "Schlepping" "Scurrying" "Seasoning"
+    "Shenaniganing" "Shimmying" "Simmering" "Skedaddling" "Sketching"
+    "Slithering" "Smooshing" "Sock-hopping" "Spelunking" "Spinning"
+    "Sprouting" "Stewing" "Sublimating" "Swirling" "Swooping"
+    "Symbioting" "Synthesizing" "Tempering" "Thinking" "Thundering"
+    "Tinkering" "Tomfoolering" "Topsy-turvying" "Transfiguring" "Transmuting"
+    "Twisting" "Undulating" "Unfurling" "Unravelling" "Vibing"
+    "Waddling" "Wandering" "Warping" "Whatchamacalliting" "Whirlpooling"
+    "Whirring" "Whisking" "Wibbling" "Working" "Wrangling"
+    "Zesting" "Zigzagging"
 )
 
 # Spinner animation (runs in background, writes to /dev/tty)
 _zsh_claude_spinner() {
-    local spinchars='✽⊹✦◈'
-    local spin_len=4
-    local words_len=${#_ZSH_CLAUDE_THINKING_VERBS[@]}
-    local i=1
-    local w=$(( RANDOM % words_len + 1 ))  # Start with random word
-    local tick=0
+    # Build ping-pong frame sequence from platform-appropriate characters
+    local -a base_chars=(${(s: :)$(_zsh_claude_spinner_chars)})
+    local -a frames=("${base_chars[@]}")
+    local k
+    for ((k=${#base_chars[@]}; k>=1; k--)); do
+        frames+=("${base_chars[$k]}")
+    done
+    local frame_count=${#frames[@]}
 
-    # Colors for shimmering effect (cyan gradient)
-    local -a colors=('\033[96m' '\033[36m' '\033[96m' '\033[36m')
-    local color_idx=1
+    # Colors (Claude Code theme: salmon/orange)
+    local base_color='\033[38;5;174m'
+    local shimmer_color='\033[38;5;216m'
+    local reset_color='\033[0m'
+
+    # State
+    local words_len=${#_ZSH_CLAUDE_THINKING_VERBS[@]}
+    local frame_idx=1
+    local w=$(( RANDOM % words_len + 1 ))
+    local tick=0
+    local word="${_ZSH_CLAUDE_THINKING_VERBS[$w]}"
+    local full_text="${word}…"
+    local text_len=${#full_text}
+    local shimmer_pos=$text_len
 
     # Hide cursor
     printf '\033[?25l' > /dev/tty
 
     while true; do
-        local char="${spinchars[$i]}"
-        local word="${_ZSH_CLAUDE_THINKING_VERBS[$w]}"
-        local color="${colors[$color_idx]}"
+        local spinner_char="${frames[$frame_idx]}"
 
-        # Print spinner with shimmering color effect
-        printf '\r\033[K%b%s %s...\033[0m' "$color" "$char" "$word" > /dev/tty
+        # Build output with per-character shimmer sweep
+        local output="${base_color}${spinner_char} "
+        local j
+        for ((j=1; j<=text_len; j++)); do
+            if (( j >= shimmer_pos - 1 && j <= shimmer_pos + 1 )); then
+                output+="${shimmer_color}${full_text[$j]}"
+            else
+                output+="${base_color}${full_text[$j]}"
+            fi
+        done
+        output+="${reset_color}"
 
-        i=$(( i % spin_len + 1 ))
+        printf '\r\033[K%b' "$output" > /dev/tty
+
+        # Advance frame (ping-pong)
+        frame_idx=$(( frame_idx % frame_count + 1 ))
         tick=$(( tick + 1 ))
-        color_idx=$(( color_idx % 4 + 1 ))
 
-        # Change word every ~12 ticks (~1.2 seconds)
-        if (( tick % 12 == 0 )); then
-            w=$(( RANDOM % words_len + 1 ))
+        # Advance shimmer every 2 ticks (~240ms, approximating 200ms)
+        if (( tick % 2 == 0 )); then
+            shimmer_pos=$(( shimmer_pos - 1 ))
+            if (( shimmer_pos < 0 )); then
+                shimmer_pos=$text_len
+            fi
         fi
-        sleep 0.1
+
+        # Change verb every 20 ticks (~2.4 seconds)
+        if (( tick % 20 == 0 )); then
+            w=$(( RANDOM % words_len + 1 ))
+            word="${_ZSH_CLAUDE_THINKING_VERBS[$w]}"
+            full_text="${word}…"
+            text_len=${#full_text}
+            shimmer_pos=$text_len
+        fi
+
+        sleep 0.12
     done
 }
 
