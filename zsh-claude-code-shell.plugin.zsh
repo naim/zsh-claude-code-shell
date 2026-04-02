@@ -7,6 +7,9 @@
 : ${ZSH_CLAUDE_SHELL_DEBUG:=0}
 : ${ZSH_CLAUDE_SHELL_FANCY_LOADING:=1}  # Set to 0 to use simple loading message
 
+# Cache platform info at load time (used in system prompt)
+_ZSH_CLAUDE_PLATFORM_INFO="${OSTYPE} ($(uname -s) $(uname -m))"
+
 # Spinner character detection (platform/terminal-aware, matching Claude Code)
 _zsh_claude_spinner_chars() {
     if [[ "$OSTYPE" == darwin* ]]; then
@@ -92,13 +95,14 @@ _zsh_claude_spinner() {
     # Hide cursor
     printf '\033[?25l' > /dev/tty
 
+    local spinner_char output s_start s_end
     while true; do
-        local spinner_char="${frames[$frame_idx]}"
+        spinner_char="${frames[$frame_idx]}"
 
         # Build output with shimmer sweep using substring slicing
-        local output="${base_color}${spinner_char} "
-        local s_start=$(( shimmer_pos - 1 ))
-        local s_end=$(( shimmer_pos + 1 ))
+        output="${base_color}${spinner_char} "
+        s_start=$(( shimmer_pos - 1 ))
+        s_end=$(( shimmer_pos + 1 ))
         (( s_start < 1 )) && s_start=1
         (( s_end > text_len )) && s_end=$text_len
 
@@ -123,7 +127,7 @@ _zsh_claude_spinner() {
         # Advance shimmer every 2 ticks (~240ms, approximating 200ms)
         if (( tick % 2 == 0 )); then
             shimmer_pos=$(( shimmer_pos - 1 ))
-            if (( shimmer_pos < 0 )); then
+            if (( shimmer_pos < 1 )); then
                 shimmer_pos=$text_len
             fi
         fi
@@ -239,7 +243,7 @@ _zsh_claude_accept_line() {
     # Build claude command - restrict tools and use focused system prompt
     local claude_args=("-p" "--output-format" "text")
     claude_args+=("--tools" "WebSearch,WebFetch")
-    claude_args+=("--system-prompt" "You are a shell command generator running on ${OSTYPE} ($(uname -s) $(uname -m)). Shell: zsh. Your ONLY job is to output a single shell command that accomplishes the user's request. Use commands and flags compatible with this operating system. Output ONLY the raw shell command - no markdown, no code blocks, no explanations, no comments, no backticks. Just the executable command itself on a single line. If you need to look up command syntax, you may use web search.")
+    claude_args+=("--system-prompt" "You are a shell command generator running on ${_ZSH_CLAUDE_PLATFORM_INFO}. Shell: zsh. Your ONLY job is to output a single shell command that accomplishes the user's request. Use commands and flags compatible with this operating system. Output ONLY the raw shell command - no markdown, no code blocks, no explanations, no comments, no backticks. Just the executable command itself on a single line. If you need to look up command syntax, you may use web search.")
 
     if [[ -n "$ZSH_CLAUDE_SHELL_MODEL" ]]; then
         claude_args+=("--model" "$ZSH_CLAUDE_SHELL_MODEL")
