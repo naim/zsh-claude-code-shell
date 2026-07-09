@@ -241,7 +241,10 @@ _zsh_claude_accept_line() {
     fi
 
     # Build claude command - restrict tools and use focused system prompt
-    local claude_args=("-p" "--output-format" "text")
+    # Modified by Naim to disable hooks, disable skills, and not persist sessions to disk
+    local claude_args=("-p" "--output-format" "text" "--no-session-persistence")
+    claude_args+=("--settings" '{"disableAllHooks": true}')
+    claude_args+=("--disable-slash-commands")
     claude_args+=("--tools" "WebSearch,WebFetch")
     claude_args+=("--system-prompt" "You are a shell command generator running on ${_ZSH_CLAUDE_PLATFORM_INFO}. Shell: zsh. Your ONLY job is to output a single shell command that accomplishes the user's request. Use commands and flags compatible with this operating system. Output ONLY the raw shell command - no markdown, no code blocks, no explanations, no comments, no backticks. Just the executable command itself on a single line. If you need to look up command syntax, you may use web search.")
 
@@ -255,10 +258,11 @@ _zsh_claude_accept_line() {
     local exit_code
     local cmd
 
+    # Added the env vars to further streamline this plugin
     if [[ "$ZSH_CLAUDE_SHELL_DEBUG" == "1" ]]; then
-        claude "${claude_args[@]}" "$query" > "$tmpfile" 2>&1 &
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_NON_ESSENTIAL_MODEL_CALLS=1 claude "${claude_args[@]}" "$query" > "$tmpfile" 2>&1 &
     else
-        claude "${claude_args[@]}" "$query" > "$tmpfile" 2>/dev/null &
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 DISABLE_NON_ESSENTIAL_MODEL_CALLS=1 claude "${claude_args[@]}" "$query" > "$tmpfile" 2>/dev/null &
     fi
     claude_pid=$!
 
